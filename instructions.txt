@@ -1,0 +1,5 @@
+ 1. Go to project repository page at https://github.com/charlesrclark1243/ECO322Spring2022Project1
+ 2. Clone the project, DO NOT FORK!!!
+ 3. Go to directory where the project is stored
+
+If having difficulty with the directions above, use "Step 2: Setup Your Team" from https://medium.com/@jonathanmines/the-ultimate-github-collaboration-guide-df816e98fb67 as a guide.
