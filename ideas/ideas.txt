@@ -4,4 +4,3 @@ Ideas:
       difference.
   - Did growth of the fully vaccinated population reduce the growth in the number of COVID-19 cases?
     + Can compare US cases before vaccines rolled out to US cases after vaccines rolled out.
-  -
