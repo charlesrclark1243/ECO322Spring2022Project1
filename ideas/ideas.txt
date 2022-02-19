@@ -1,6 +1,4 @@
 Ideas:
   - Did strict regulations have the intended effect of reducing transmission of COVID-19?
-    + Can compare places like NY to places like Florida and see if there's any statistical 
-      difference.
-  - Did growth of the fully vaccinated population reduce the growth in the number of COVID-19 cases?
-    + Can compare US cases before vaccines rolled out to US cases after vaccines rolled out.
+    + Thinking city to city could be best approach: compare Miami to New York, Austin to LA, etc.
+    + Worst case scenario, state to state, if results from city to city aren't presentable.
