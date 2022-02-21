@@ -12,6 +12,8 @@ print(PathOut)
 #Put ENTIRE USA sorted by region into a DataTable. We will then get 'new cases' as bulk in next section
 #(instead of parsing through it 20 times)
 USA <- covid19( country = c("United States") , level = 3 , verbose = FALSE)
+#Removes the following columns below from data.table (not needed since they are really just general geographical identifiers for the USA)
+USA <- USA[,c("iso_numeric","iso_currency", "administrative_area_level_1","administrative_area_level", "iso_alpha_3","iso_alpha_2","key_local"):=NULL]
 
 View( USA[1:100,] )
 
