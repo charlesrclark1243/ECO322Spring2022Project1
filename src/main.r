@@ -7,7 +7,7 @@ install.packages(c("data.table", "COVID19"))
 
 # MACOS/LINUX:
 install.packages("COVID19")
-# download binaries at https://cran.r-project.org/web/packages/data.table/index.html
+# follow macOS instructions in txt file.
 
 #-------------------------------------------------------------------------------
 # Remove existing environment variables
