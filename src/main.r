@@ -45,7 +45,7 @@ print(cPathOut)
 #-------------------------------------------------------------------------------
 # PATH TO BE USED (REDEFINE WITH YOUR OWN PATHOUT VARIABLE BEFORE RUNNING):
 
-PathOut <- cPathOut # ENTER YOUR PATH VARABLE HERE!!!
+PathOut <- # ENTER YOUR PATH VARABLE HERE!!!
 
 #-------------------------------------------------------------------------------
 # Put ENTIRE USA sorted by region into a data.table...
