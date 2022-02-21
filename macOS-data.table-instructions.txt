@@ -1,0 +1,15 @@
+Instructions for running main.r on macOS; need to be completed BEFORE running library(data.table) EVERY TIME YOU OPEN THE FILE...
+
+ 1. Go to https://mac.r-project.org/openmp/ and determine which LLVM build matches your architecture and version of macOS.
+ 2. Open terminal and run the following commands...
+
+curl -O https://mac.r-project.org/openmp/openmp-<matching version>-Release.tar.gz
+sudo tar fvxz openmp-<matching version>-Release.tar.gz -C /
+
+    Note: You might be asked to enter your password before the second command executes.
+ 3. Go to https://cran.r-project.org/web/packages/data.table/index.html and download the binaries for data.table that match your system's architecture.
+ 4. Run the following command...
+
+PKG_CPPFLAGS='-Xclang -fopenmp' PKG_LIBS=-lomp R CMD INSTALL /path/to/downloaded/binaries/data.table_<version>.tar
+
+Once these steps are followed, you should be able to run library(data.table) in main.r without any errors about OpenMP.
