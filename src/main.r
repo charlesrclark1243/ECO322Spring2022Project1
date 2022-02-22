@@ -4,10 +4,12 @@
 
 # WINDOWS:
 install.packages(c("data.table", "COVID19"))
+install.packages("stringr")
 
 # MACOS/LINUX:
 install.packages("COVID19")
 # follow macOS instructions in txt file.
+install.packages("stringr")
 
 #-------------------------------------------------------------------------------
 # Remove existing environment variables
@@ -23,6 +25,7 @@ library(data.table) # An enhancement of data.frame, with great capabilities
 # library(data.table)...
 # let me know... spent the better part of a day trying to get it to work...
 # so I might be able to help, but hopefully it isn't a problem.
+library(stringr)
 
 #-------------------------------------------------------------------------------
 # JESSE'S PATH:
@@ -100,6 +103,18 @@ View( USA[630:649 , list(State, City,  date, confirmed, Previous, DailyCases) ] 
 USA[, Previous := NULL] #Gets rid of Previous column (it was used as part of our calculations)
 
 #-------------------------------------------------------------------------------
+# create new data.table that only contains date, DailyCases, State, City, ...
+# latitude, longitude, and stringency_index (will be used for rest of project)
+
+USA_trimmed <- USA[, list(date,
+                          State,
+                          City,
+                          latitude,
+                          longitude,
+                          DailyCases,
+                          stringency_index)]
+
+#-------------------------------------------------------------------------------
 #Parse through the data table to get each cities data. NOTE *Some counties were 
 #used for major cities. I made note of this where applicable.*
 
@@ -149,6 +164,111 @@ SAN_DIEGO<- USA[USA$City== "San Diego" & USA$State == "California"]
 View (USA[USA$State == "North Carolina", list(City,date,confirmed)])
 
 #-------------------------------------------------------------------------------
-# going to create some visualizations using the data 
+# first, create trimmed versions of every city data.table...
 
-View(NYC)
+NYC_trimmed <- USA_trimmed[City == "New York City"]
+
+LA_trimmed  <- USA_trimmed[City == "Los Angeles"]
+
+SF_trimmed <- USA_trimmed[City == "San Francisco"]
+
+HOUS_trimmed <- USA_trimmed[City == "Houston" & State == "Texas"]
+
+DALLAS_trimmed <- USA_trimmed[City == "Dallas" & State == "Texas"]
+
+MIAMI_trimmed <- USA_trimmed[City == "Miami-Dade" & State == "Florida"]
+
+SEAT_trimmed <- USA_trimmed[City == "King" & State == "Washington"] #contains Seattle
+
+CHARLOTTE_trimmed <- USA_trimmed[City == "Mecklenburg" & State == "North Carolina"]
+
+FT_LAUD_trimmed <- USA_trimmed[City == "Broward"] #watch for city overlap --contains Fort Lauderdale
+
+ST_LOU_trimmed <- USA_trimmed[City == "St. Louis" & State == "Missouri"]
+
+BATON_trimmed <- USA_trimmed[City == "East Baton Rouge"] 
+
+ORLEANS_trimmed <- USA_trimmed[City == "Orleans" & State == "Louisiana"] 
+
+DAVIDSON_trimmed <- USA_trimmed[City == "Davidson" & State == "Tennessee"] #contains nashville
+
+ORANGE_trimmed <- USA_trimmed[City == "Orange" & State == "Florida"] #has Orlando
+
+PHIL_trimmed <- USA_trimmed[City == "Philadelphia" & State == "Pennsylvania"]
+
+COOK_trimmed <- USA_trimmed[City == "Cook"  & State == "Illinois"] #Contains Chicago
+
+DETROIT_trimmed <- USA_trimmed[City == "Wayne" & State == "Michigan"] #contains Detroit
+
+MILWAUKEE_trimmed  <- USA_trimmed[City == "Milwaukee" & State == "Wisconsin"]
+
+AUSTIN_trimmed <- USA_trimmed[City == "Austin" & State == "Texas"]
+
+SAN_DIEGO_trimmed <- USA_trimmed[City== "San Diego" & State == "California"]
+
+#-------------------------------------------------------------------------------
+# check type of NYC_trimmed to make sure it's a data.table...
+
+typeof(NYC_trimmed)
+
+#-------------------------------------------------------------------------------
+# we should rename latitude, longitude, DailyCases, and stringency_index for
+# for each city so we don't get errors when merging...
+
+rename_specific_cols <- function(city_dt){
+  cols_to_rename <- colnames(city_dt)[c(4:7)]
+  
+  for (col_name in cols_to_rename) {
+    city_name_list <- as.vector(str_split_fixed(city_dt$City[1],
+                                                pattern = " ",
+                                                n = nchar(city_dt$City[1])))
+    city_name <- paste(city_name_list, collapse = "")
+    
+    new_col_name <- paste(col_name, city_name, sep = "")
+    
+    setnames(city_dt,
+             old = col_name,
+             new = new_col_name)
+  }
+}
+
+rename_specific_cols(NYC_trimmed)
+
+rename_specific_cols(LA_trimmed) #  <- USA_trimmed[City == "Los Angeles"]
+
+rename_specific_cols(SF_trimmed) # <- USA_trimmed[City == "San Francisco"]
+
+rename_specific_cols(HOUS_trimmed) # <- USA_trimmed[City == "Houston" & State == "Texas"]
+
+rename_specific_cols(DALLAS_trimmed) # <- USA_trimmed[City == "Dallas" & State == "Texas"]
+
+rename_specific_cols(MIAMI_trimmed) # <- USA_trimmed[City == "Miami-Dade" & State == "Florida"]
+
+rename_specific_cols(SEAT_trimmed) # <- USA_trimmed[City == "King" & State == "Washington"] #contains Seattle
+
+rename_specific_cols(CHARLOTTE_trimmed) # <- USA_trimmed[City == "Mecklenburg" & State == "North Carolina"]
+
+rename_specific_cols(FT_LAUD_trimmed) # <- USA_trimmed[City == "Broward"] #watch for city overlap --contains Fort Lauderdale
+
+rename_specific_cols(ST_LOU_trimmed) # <- USA_trimmed[City == "St. Louis" & State == "Missouri"]
+
+rename_specific_cols(BATON_trimmed) # <- USA_trimmed[City == "East Baton Rouge"] 
+
+rename_specific_cols(ORLEANS_trimmed) # <- USA_trimmed[City == "Orleans" & State == "Louisiana"] 
+
+rename_specific_cols(DAVIDSON_trimmed) # <- USA_trimmed[City == "Davidson" & State == "Tennessee"] #contains nashville
+
+rename_specific_cols(ORANGE_trimmed) # <- USA_trimmed[City == "Orange" & State == "Florida"] #has Orlando
+
+rename_specific_cols(PHIL_trimmed) # <- USA_trimmed[City == "Philadelphia" & State == "Pennsylvania"]
+
+rename_specific_cols(COOK_trimmed) # <- USA_trimmed[City == "Cook"  & State == "Illinois"] #Contains Chicago
+
+rename_specific_cols(DETROIT_trimmed) # <- USA_trimmed[City == "Wayne" & State == "Michigan"] #contains Detroit
+
+rename_specific_cols(MILWAUKEE_trimmed) #  <- USA_trimmed[City == "Milwaukee" & State == "Wisconsin"]
+
+rename_specific_cols(AUSTIN_trimmed) # <- USA_trimmed[City == "Austin" & State == "Texas"]
+
+rename_specific_cols(SAN_DIEGO_trimmed) # <- USA_trimmed[City== "San Diego" & State == "California"]
+
