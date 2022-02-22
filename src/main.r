@@ -45,7 +45,7 @@ print(cPathOut)
 #-------------------------------------------------------------------------------
 # PATH TO BE USED (REDEFINE WITH YOUR OWN PATHOUT VARIABLE BEFORE RUNNING):
 
-PathOut <- # ENTER YOUR PATH VARABLE HERE!!!
+PathOut <- cPathOut # ENTER YOUR PATH VARABLE HERE!!!
 
 #-------------------------------------------------------------------------------
 # Put ENTIRE USA sorted by region into a data.table...
@@ -70,17 +70,19 @@ USA[, WeekDay := weekdays(date)]
 # view USA data, sepcifically "date", "WeekDay", and "confirmed"...
 View( USA[, list(date,WeekDay,confirmed)])
 
-# going to look into what this does later...
+# count number of observations for each county...
 USA[, table(administrative_area_level_3 , useNA= "ifany")]
 
 #-------------------------------------------------------------------------------
 # Rename the area columns to City (really County) and State
 
+# renames administrative_area_level_2 to State...
 setnames(USA, 
         old = c("administrative_area_level_2"), new = c("State"))
 
+# renames administrative_area_level_3 to City (really represents County)...
 setnames( USA, 
-          old = c("administrative_area_level_3") , new = c("City"))
+          old = c("administrative_area_level_3") , c("City"))
 
 # set keys in USA...        
 setkeyv(USA, cols = c("State","City", "date"))
@@ -93,7 +95,7 @@ USA[, Previous := shift(confirmed , n=1, type = "lag" , fill = NA_integer_), by 
 
 USA[,DailyCases := confirmed - Previous]
 
-View( USA[630:650 , list(State, City,  date, confirmed, Previous, DailyCases) ] ) 
+View( USA[630:649 , list(State, City,  date, confirmed, Previous, DailyCases) ] ) 
 
 USA[, Previous := NULL] #Gets rid of Previous column (it was used as part of our calculations)
 
@@ -147,4 +149,6 @@ SAN_DIEGO<- USA[USA$City== "San Diego" & USA$State == "California"]
 View (USA[USA$State == "North Carolina", list(City,date,confirmed)])
 
 #-------------------------------------------------------------------------------
-# going to create some visualizations using the data tomorrow...
+# going to create some visualizations using the data 
+
+View(NYC)
