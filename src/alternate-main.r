@@ -12,10 +12,11 @@ cPathOut <- file.path(cRoot, "Users", "charlieclark", "Documents", "GitHub", "EC
 pathOut <- cPathOut # REPLACE WITH YOUR OWN PATH OUT VARIABLE!!!
 
 # ---------------------------------------------------------------------------------------------
-# include data.table and COVID19 packages...
+# include data.table, COVID19, and ggplot2 packages...
 
 library(COVID19)
 library(data.table)
+library(ggplot2)
 
 # ---------------------------------------------------------------------------------------------
 # import USA data...
@@ -72,6 +73,10 @@ View(USA)
 
 USA <- USA[date>="2021-01-01" & date<="2021-12-31", ]
 View(USA[state == "Alabama", ])
+
+# ---------------------------------------------------------------------------------------------
+# remove any records with less than 0 daily cases...
+USA <- USA[daily_cases >= 0]
 
 # ---------------------------------------------------------------------------------------------
 # create California data.table and use it as a test sample...
@@ -210,16 +215,44 @@ diff_states_low <- vector()
 diff_states_mid <- vector()
 diff_states_high <- vector()
 
+create_stringency_category <- function (state_dt, si_avg) {
+  to_return <- vector()
+  
+  for (si_index in state_dt$stringency_index) {
+    if (si_index <= si_avg) {
+      to_return[length(to_return) + 1] <- "Less than or Equal to Average Index"
+    }
+    else {
+      to_return[length(to_return) + 1] <- "Greater than Average Index"
+    }
+  }
+  
+  return (to_return)
+}
+
+
 for (index in state_indices) {
   # get the current state's data...
   curr_state <- get(state.abb[index])
   
   # calculate the current state's average stringency index...
   curr_state_avg_stringency_index <- mean(curr_state$stringency_index)
-
+  
   # separate state data into lenient and strict datasets based on comparisons to average...
   curr_state_lenient <- curr_state[stringency_index <= curr_state_avg_stringency_index]
   curr_state_strict <- curr_state[stringency_index > curr_state_avg_stringency_index]
+  
+  # save lenient and strict datasets to variables...
+  assign(paste(state.abb[index], "lenient", sep = "_"), curr_state_lenient)
+  assign(paste(state.abb[index], "strict", sep = "_"), curr_state_strict)
+  
+  # add categorical variable based on comparison to stringency_index...
+  curr_state[, stringency_category := create_stringency_category(
+    curr_state, curr_state_avg_stringency_index
+  )]
+  
+  # save curr_state to references state dataset...
+  assign(state.abb[index], curr_state)
   
   # perform hypothesis test (2-sided)...
   t_test_obj <- t.test(curr_state_lenient$daily_cases, curr_state_strict$daily_cases)
@@ -264,3 +297,64 @@ print(paste("Percentage of US states with significant difference at alpha = 0.05
 print(paste("Percentage of US states with significant difference at alpha = 0.10:",
             high_percentage,
             sep = " "))
+
+View(TX)
+# ---------------------------------------------------------------------------------------------
+# use ggplot2 to create boxplot visualizations...
+
+# create New York ggplot object...
+f <- ggplot(data = NY, aes(x = NY$stringency_category,
+                           y = NY$daily_cases))
+
+# create box plot for New York...
+f + geom_boxplot(fill = "#0099ffbb") +
+  labs(x = "Stringency Category",
+       y = "Daily Cases",
+       title = "New York Strigency Comparison") +
+  theme_linedraw()
+
+# create violin plot for New York...
+f + geom_violin(fill = "#0099ffbb",
+                draw_quantiles = c(0.5)) +
+  labs(x = "Stringency Category",
+       y = "Daily Cases",
+       title = "New York Stringency Comparison") +
+  theme_linedraw()
+
+# create California ggplot object...
+f <- ggplot(data = CA, aes(x = CA$stringency_category,
+                           y = CA$daily_cases))
+
+# create box plot for California...
+f + geom_boxplot(fill="#ff0055bb") +
+  labs(x = "Stringency Catgegory",
+       y = "Daily Cases",
+       title = "California Stringency Comparison") +
+  theme_linedraw()
+
+# create violin plot for California...
+f + geom_violin(fill = "#ff0055bb",
+                draw_quantiles = c(0.5)) +
+  labs(x = "Stringency Category",
+       y = "Daily Cases",
+       title = "California Stringency Comparison") +
+  theme_linedraw()
+
+# create Florida ggplot object...
+f <- ggplot(data = FL, aes(x = FL$stringency_category,
+                           y = FL$daily_cases))
+
+# create box plot for Florida...
+f + geom_boxplot(fill="#bb3377bb") +
+  labs(x = "Stringency Category",
+       y = "Daily Cases",
+       title = "Florida Stringency Comparison") +
+  theme_linedraw()
+
+# create violin plot for Florida...
+f + geom_violin(fill = "#bb3377bb",
+                draw_quantiles = c(0.5)) +
+  labs(x = "Stringency Category",
+       y = "Daily Cases",
+       title = "Florida Stringency Comparison") +
+  theme_linedraw()
