@@ -31,11 +31,6 @@ setDT(USA)
 is.data.table(USA)
 
 # ---------------------------------------------------------------------------------------------
-# remove administrative_area_level_1 and administrative_area_level_3 columns...
-
-USA[, c("administrative_area_level_1", "administrative_area_level_3") := c(NULL, NULL)]
-
-# ---------------------------------------------------------------------------------------------
 # rename administrative_area_level_2 to state and set keys for USA data...
 
 # rename...
@@ -66,7 +61,7 @@ colnames(USA)
 # only include date, state, daily_cases, and stringency_index...
 
 USA <- USA[, c("date", "state", "daily_cases", "stringency_index")]
-View(USA)
+View(USA[1:100, ])
 
 # ---------------------------------------------------------------------------------------------
 # trim USA data.table to only include dates in interval [1/1/2021, 12/31/2021]...
@@ -76,7 +71,9 @@ View(USA[state == "Alabama", ])
 
 # ---------------------------------------------------------------------------------------------
 # remove any records with less than 0 daily cases...
+
 USA <- USA[daily_cases >= 0]
+View(USA[USA$daily_cases < 0]) # should see an empty data.table...
 
 # ---------------------------------------------------------------------------------------------
 # create California data.table and use it as a test sample...
@@ -144,9 +141,9 @@ for (index in state_indices) {
 # make sure each state has an average stringency index...
 
 for (index in state_indices) {
-  curr_state <- get(state.abb[index])
+  state_ptr <- get(state.abb[index])
   
-  print(paste(state.name[index], mean(curr_state$stringency_index), sep = " ----> " ))
+  print(paste(state.name[index], mean(state_ptr$stringency_index), sep = " ----> " ))
 }
 
 # it looks like Louisiana, Maryland, and Rhode Island have NA average stringency indices...
@@ -160,10 +157,10 @@ LA_na_indices <- which(is.na(LA$stringency_index), arr.ind = TRUE)
 # there seems to be only one NA record, so we only need to interpolate once...
 # replace NA record using mean of stringency_index values for 15 days before and after...
 # day with NA record for stringency_index...
-LA$stringency_index[LA_na_index] = mean(LA$stringency_index[LA_na_index - 15:LA_na_index + 15], na.rm = TRUE)
+LA$stringency_index[LA_na_indices] = mean(LA$stringency_index[LA_na_indices - 15:LA_na_indices + 15], na.rm = TRUE)
 
 # check if we were successful...
-any(is.na(LA$stringency_index))
+any(is.na(LA$stringency_index)) # should print FALSE...
 
 # next up is Maryland...
 
@@ -184,7 +181,7 @@ for (index in MD_na_indices) {
 }
 
 # check if we were successful...
-any(is.na(MD$stringency_index))
+any(is.na(MD$stringency_index)) # should print FALSE...
 
 # finally moving onto Rhode Island...
 
@@ -205,102 +202,229 @@ for (index in RI_na_indices) {
 }
 
 # check if we were successful...
-any(is.na(RI$stringency_index))
+any(is.na(RI$stringency_index)) # should print FALSE...
 
 # ---------------------------------------------------------------------------------------------
 # iterate through every state to determine what percentage of the US states...
 # saw statistically significant effects from stricter-than-average regulations...
 
-diff_states_low <- vector()
-diff_states_mid <- vector()
-diff_states_high <- vector()
-
-create_stringency_category <- function (state_dt, si_avg) {
-  to_return <- vector()
+# define function to create a catgeorical varaible in a given data.table...
+# (assumes the passed data.table was already initialized and defined OUTSIDE the function)...
+# stringency_category values are assigned to each record after comparing the record's...
+# stringency_index to the average stringency_index for the passed data.table...
+create_stringency_category <- function(state_dt) {
+  stringency_category_vector <- vector()
   
-  for (si_index in state_dt$stringency_index) {
-    if (si_index <= si_avg) {
-      to_return[length(to_return) + 1] <- "Less than or Equal to Average Index"
+  for (index in c(1:length(state_dt$stringency_index))) {
+    if (state_dt$stringency_index[index] <= mean(state_dt$stringency_index)) {
+      stringency_category_vector[length(stringency_category_vector) + 1] <- "Less than or Equal to Average"
     }
     else {
-      to_return[length(to_return) + 1] <- "Greater than Average Index"
+      stringency_category_vector[length(stringency_category_vector) + 1] <- "Greater than Average"
     }
   }
   
-  return (to_return)
+  setDT(state_dt)
+  
+  state_dt[, stringency_category := stringency_category_vector]
+  
+  return (state_dt)
 }
 
-
+# create lenient and strict data.tables for each state, based on the values...
+# is each record's stringency_category value...
 for (index in state_indices) {
-  # get the current state's data...
-  curr_state <- get(state.abb[index])
+  assign(state.abb[index], create_stringency_category(get(state.abb[index])))
   
-  # calculate the current state's average stringency index...
-  curr_state_avg_stringency_index <- mean(curr_state$stringency_index)
+  assign(paste(state.abb[index], "lenient", sep = "_"),
+         setDT(get(state.abb[index])[stringency_category == "Less than or Equal to Average"]))
   
-  # separate state data into lenient and strict datasets based on comparisons to average...
-  curr_state_lenient <- curr_state[stringency_index <= curr_state_avg_stringency_index]
-  curr_state_strict <- curr_state[stringency_index > curr_state_avg_stringency_index]
-  
-  # save lenient and strict datasets to variables...
-  assign(paste(state.abb[index], "lenient", sep = "_"), curr_state_lenient)
-  assign(paste(state.abb[index], "strict", sep = "_"), curr_state_strict)
-  
-  # add categorical variable based on comparison to stringency_index...
-  curr_state[, stringency_category := create_stringency_category(
-    curr_state, curr_state_avg_stringency_index
-  )]
-  
-  # save curr_state to references state dataset...
-  assign(state.abb[index], curr_state)
-  
-  # perform hypothesis test (2-sided)...
-  t_test_obj <- t.test(curr_state_lenient$daily_cases, curr_state_strict$daily_cases)
+  assign(paste(state.abb[index], "strict", sep = "_"),
+         setDT(get(state.abb[index])[stringency_category == "Greater than Average"]))
+}
 
-  # sort based on alpha = 0.01, 0.05, 0.10...
-  if (t_test_obj$p.value < 0.01) {
-    diff_states_low[length(diff_states_low) + 1] = state.abb[index]
+# create empty vectors that will contain the name abbreviations for the states...
+# that show statistically significant differences between the lenient and strict...
+# average number of daily cases at the alpha = 0.01 (small), 0.05 (middle), and...
+# 0.10 (large) levels of significance. Also create a vector for states with no significant difference...
+# The elements they will contain are determined through 2-sided t tests on a state's average daily cases...
+# in lenient and strict data.tables...
+difference_states_small_alpha <- vector()
+difference_states_middle_alpha <- vector()
+difference_states_large_alpha <- vector()
+no_difference_states <- vector()
+
+# loop through each state and perform the 2-sided t tests mentioned above...
+for (index in state_indices) {
+  assign(paste(state.abb[index], "diff_ttest_obj", sep = "_"),
+         t.test(
+           get(paste(state.abb[index], "lenient", sep = "_"))$daily_cases,
+           get(paste(state.abb[index], "strict", sep = "_"))$daily_cases
+         ))
+}
+
+# loop through each state's t_test objects and populate the three alpha vectors...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.01) {
+    difference_states_large_alpha[length(difference_states_large_alpha) + 1] <- state.abb[index]
+    difference_states_middle_alpha[length(difference_states_middle_alpha) + 1] <- state.abb[index]
+    difference_states_small_alpha[length(difference_states_small_alpha) + 1] <- state.abb[index]
   }
-  
-  if (t_test_obj$p.value < 0.05) {
-    diff_states_mid[length(diff_states_mid) + 1] = state.abb[index]
+  else if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.05) {
+    difference_states_large_alpha[length(difference_states_large_alpha) + 1] <- state.abb[index]
+    difference_states_middle_alpha[length(difference_states_middle_alpha) + 1] <- state.abb[index]
   }
-  
-  if (t_test_obj$p.value < 0.10) {
-    diff_states_high[length(diff_states_high) + 1] = state.abb[index]
+  else if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.10) {
+    difference_states_large_alpha[length(difference_states_large_alpha) + 1] <- state.abb[index]
   }
-  
-  print(paste(state.name[index], t_test_obj$p.value, sep = " ----> "))
+  else {
+    no_difference_states[length(no_difference_states) + 1] <- state.abb[index]
+  }
 }
 
 # ---------------------------------------------------------------------------------------------
 # calculate percentages for each alpha (0.01, 0.05, 0.10)...
 
 # calculate alpha = 0.01 (low) percentage of states with difference...
-low_percentage <- length(diff_states_low) / 50.0
+diff_small_alpha_percentage <- length(difference_states_small_alpha) / 50.0
 
 # calculate alpha = 0.05 (mid) percentage of states with difference...
-mid_percentage <- length(diff_states_mid) / 50.0
+diff_middle_alpha_percentage <- length(difference_states_middle_alpha) / 50.0
 
 # calculate alpha = 0.10 (high) percentage of states with difference...
-high_percentage <- length(diff_states_high) / 50.0
+diff_large_alpha_percentage <- length(difference_states_large_alpha) / 50.0
 
 # print results...
 print(paste("Percentage of US states with significant difference at alpha = 0.01:",
-            low_percentage,
+            diff_small_alpha_percentage,
             sep = " "))
 
 print(paste("Percentage of US states with significant difference at alpha = 0.05:",
-            mid_percentage,
+            diff_middle_alpha_percentage,
             sep = " "))
 
 print(paste("Percentage of US states with significant difference at alpha = 0.10:",
-            high_percentage,
+            diff_large_alpha_percentage,
             sep = " "))
 
-View(TX)
+# create lenient_smaller_mean vectors for the alpha = 0.01, 0.05, 0.10 levels of significance...
+lenient_smaller_mean_small_alpha_states <- vector()
+lenient_smaller_mean_middle_alpha_states <- vector()
+lenient_smaller_mean_large_alpha_states <- vector()
+
+# also create lenient_not_smaller vector...
+lenient_not_smaller_states <- vector()
+
+# loop through each state and create strict_larger_mean ttest objects for each...
+for (index in state_indices) {
+  assign(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"),
+         t.test(get(paste(state.abb[index], "strict", sep = "_"))$daily_cases,
+                get(paste(state.abb[index], "lenient", sep = "_"))$daily_cases,
+                alternative = "greater")
+         )
+}
+
+# populate lenient_smaller and lenient_not_smaller vectors for each level of significance...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.01) {
+    lenient_smaller_mean_large_alpha_states[length(lenient_smaller_mean_large_alpha_states) + 1] <- state.abb[index]
+    lenient_smaller_mean_middle_alpha_states[length(lenient_smaller_mean_middle_alpha_states) + 1] <- state.abb[index]
+    lenient_smaller_mean_small_alpha_states[length(lenient_smaller_mean_small_alpha_states) + 1] <- state.abb[index]
+  }
+  else if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.05) {
+    lenient_smaller_mean_large_alpha_states[length(lenient_smaller_mean_large_alpha_states) + 1] <- state.abb[index]
+    lenient_smaller_mean_middle_alpha_states[length(lenient_smaller_mean_middle_alpha_states) + 1] <- state.abb[index]
+  }
+  else if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.10) {
+    lenient_smaller_mean_large_alpha_states[length(lenient_smaller_mean_large_alpha_states) + 1] <- state.abb[index]
+  }
+  else {
+    lenient_not_smaller_states[length(lenient_not_smaller_states) + 1] <- state.abb[index]
+  }
+}
+
+# calculate alpha = 0.01 (low) percentage of states with difference...
+lenient_smaller_small_alpha_percentage <- length(lenient_smaller_mean_small_alpha_states) / 50.0
+
+# calculate alpha = 0.05 (mid) percentage of states with difference...
+lenient_smaller_middle_alpha_percentage <- length(lenient_smaller_mean_middle_alpha_states) / 50.0
+
+# calculate alpha = 0.10 (high) percentage of states with difference...
+lenient_smaller_large_alpha_percentage <- length(lenient_smaller_mean_large_alpha_states) / 50.0
+
+# print results...
+print(paste("Percentage of US states with smaller lenient data average daily cases at alpha = 0.01:",
+            lenient_smaller_small_alpha_percentage,
+            sep = " "))
+
+print(paste("Percentage of US states with smaller lenient data average daily cases at alpha = 0.05:",
+            lenient_smaller_middle_alpha_percentage,
+            sep = " "))
+
+print(paste("Percentage of US states with smaller lenient data average daily cases at alpha = 0.10:",
+            lenient_smaller_large_alpha_percentage,
+            sep = " "))
+
+# create lenient_larger_mean vectors for the alpha = 0.01, 0.05, 0.10 levels of significance...
+lenient_larger_mean_small_alpha_states <- vector()
+lenient_larger_mean_middle_alpha_states <- vector()
+lenient_larger_mean_large_alpha_states <- vector()
+
+# also create lenient_not_smaller vector...
+lenient_not_larger_states <- vector()
+
+# loop through each state and create strict_larger_mean ttest objects for each...
+for (index in state_indices) {
+  assign(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"),
+         t.test(get(paste(state.abb[index], "strict", sep = "_"))$daily_cases,
+                get(paste(state.abb[index], "lenient", sep = "_"))$daily_cases,
+                alternative = "less")
+  )
+}
+
+# populate lenient_smaller and lenient_not_smaller vectors for each level of significance...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.01) {
+    lenient_larger_mean_large_alpha_states[length(lenient_larger_mean_large_alpha_states) + 1] <- state.abb[index]
+    lenient_larger_mean_middle_alpha_states[length(lenient_larger_mean_middle_alpha_states) + 1] <- state.abb[index]
+    lenient_larger_mean_small_alpha_states[length(lenient_larger_mean_small_alpha_states) + 1] <- state.abb[index]
+  }
+  else if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.05) {
+    lenient_larger_mean_large_alpha_states[length(lenient_larger_mean_large_alpha_states) + 1] <- state.abb[index]
+    lenient_larger_mean_middle_alpha_states[length(lenient_larger_mean_middle_alpha_states) + 1] <- state.abb[index]
+  }
+  else if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.10) {
+    lenient_larger_mean_large_alpha_states[length(lenient_larger_mean_large_alpha_states) + 1] <- state.abb[index]
+  }
+  else {
+    lenient_not_larger_states[length(lenient_not_larger_states) + 1] <- state.abb[index]
+  }
+}
+
+# calculate alpha = 0.01 (low) percentage of states with difference...
+lenient_larger_small_alpha_percentage <- length(lenient_larger_mean_small_alpha_states) / 50.0
+
+# calculate alpha = 0.05 (mid) percentage of states with difference...
+lenient_larger_middle_alpha_percentage <- length(lenient_larger_mean_middle_alpha_states) / 50.0
+
+# calculate alpha = 0.10 (high) percentage of states with difference...
+lenient_larger_large_alpha_percentage <- length(lenient_larger_mean_large_alpha_states) / 50.0
+
+# print results...
+print(paste("Percentage of US states with larger lenient data average daily cases at alpha = 0.01:",
+            lenient_larger_small_alpha_percentage,
+            sep = " "))
+
+print(paste("Percentage of US states with larger lenient data average daily cases at alpha = 0.05:",
+            lenient_larger_middle_alpha_percentage,
+            sep = " "))
+
+print(paste("Percentage of US states with larger lenient data average daily cases at alpha = 0.10:",
+            lenient_larger_large_alpha_percentage,
+            sep = " "))
+
 # ---------------------------------------------------------------------------------------------
-# use ggplot2 to create boxplot visualizations...
+# use ggplot2 to create box plot visualizations...
 
 # create New York ggplot object...
 f <- ggplot(data = NY, aes(x = NY$stringency_category,
