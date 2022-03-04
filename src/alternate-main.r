@@ -60,7 +60,7 @@ colnames(USA)
 # reassign USA data.table to a trimmed version of itself...
 # only include date, state, daily_cases, and stringency_index...
 
-USA <- USA[, c("date", "state", "daily_cases", "stringency_index")]
+USA <- USA[, c("date", "state", "daily_cases", "stringency_index", "population")]
 View(USA[1:100, ])
 
 # ---------------------------------------------------------------------------------------------
@@ -482,3 +482,133 @@ f + geom_violin(fill = "#bb3377bb",
        y = "Daily Cases",
        title = "Florida Stringency Comparison") +
   theme_linedraw()
+
+# ---------------------------------------------------------------------------------------------
+# now, we want to create some heat maps, so we need to import some more packages...
+
+library(sf)
+library(tigris)      
+library(tidycensus) # official US state, county boundaries...
+library(mapview)
+library(usmap)
+
+# ---------------------------------------------------------------------------------------------
+# next, we should get the fips codes for each state...
+# shoutout to Jesse for the code...
+
+z <- c(01:56)
+z <- z[! z %in% c('3','7','11','14','43','52')]
+
+# ---------------------------------------------------------------------------------------------
+# at this point, we can create a heat map for each state's average stringency index...
+
+# loop through each state to calculate and store each state's average stringency index...
+for (index in state_indices) {
+  assign(paste(state.abb[index], "avg_stringency_index", sep = "_"),
+         mean(get(state.abb[index])$stringency_index))
+}
+
+# create a vector to contain each state's average stringency index...
+avg_stringency_indices_vector <- vector()
+
+# iterate through each state average stringency index variable to populate the vector...
+for (index in state_indices) {
+  avg_stringency_indices_vector[length(avg_stringency_indices_vector) + 1] <- get(paste(
+    state.abb[index], "avg_stringency_index", sep = "_"
+  ))
+}
+
+# create DataFrame with state names in first column, fips in second, and average stringency index in third...
+states_avg_stringency_index_df <- data.frame(
+  states = state.name,
+  fips = z,
+  avg_stringency_index = avg_stringency_indices_vector
+)
+
+# create heat map using average stringency indices DataFrame...
+plot_usmap(data = states_avg_stringency_index_df,
+           values = "avg_stringency_index",
+           labels = FALSE) +
+  scale_fill_continuous(low = "white",
+                        high = "red",
+                        name = "Average Stringency Index (2021)",
+                        label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "Average Stringency Indices in the US")
+
+# ---------------------------------------------------------------------------------------------
+# Next, we'll create a heat map for each state's average number of daily cases...
+
+# loop through each state to calculate and store average daily cases...
+for (index in state_indices) {
+  assign(paste(state.abb[index], "avg_daily_cases", sep = "_"), 
+         mean(get(state.abb[index])$daily_cases))
+}
+
+# create a vector to contain each state's average daily cases...
+states_avg_daily_cases_vector <- vector()
+
+# populate the vector by iterating through each state...
+for (index in state_indices) {
+  states_avg_daily_cases_vector[length(states_avg_daily_cases_vector) + 1] <- get(
+    paste(state.abb[index], "avg_daily_cases", sep = "_"
+  ))
+}
+
+# create another DataFrame with the state names, fips codes, and average daily cases...
+states_avg_daily_cases_df <- data.frame(
+  states = state.name,
+  fips = z,
+  avg_daily_cases = states_avg_daily_cases_vector
+)
+
+# plot another heat map using the average daily cases DataFrame...
+plot_usmap(data = states_avg_daily_cases_df,
+           values = "avg_daily_cases",
+           labels = FALSE) +
+  scale_fill_continuous(low = "white",
+                          high = "blue",
+                          name = "Average Daily Cases (2021)",
+                          label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "Average Daily Cases in the US")
+
+# ---------------------------------------------------------------------------------------------
+# now, let's create a some time series plots of daily cases and stringency index for some of the states....
+
+# create ggplot object for NY...
+i <- ggplot(data = NY,
+            mapping = aes(x = date))
+
+# create time series plot for NY...
+i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
+  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
+  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
+                                                 "Stringency Index" = "red")) +
+  labs(x = "Date", y = "Series Value", title = "NY Time Series Analysis") +
+  theme(legend.position = "right") + theme_linedraw()
+
+# create ggplot object for LA...
+i <- ggplot(data = LA,
+            mapping = aes(x = date))
+
+# create time series plot for LA...
+i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
+  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
+  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
+                                                 "Stringency Index" = "red")) +
+  labs(x = "Date", y = "Series Value", title = "Louisiana Time Series Analysis") +
+  theme(legend.position = "right") + theme_linedraw()
+
+# create ggplot object for HI...
+i <- ggplot(data = HI,
+            mapping = aes(x = date))
+
+# create time series plot for HI...
+i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
+  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
+  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
+                                                 "Stringency Index" = "red")) +
+  labs(x = "Date", y = "Series Value", title = "Hawaii Time Series Analysis") +
+  theme(legend.position = "right") + theme_linedraw()
+
