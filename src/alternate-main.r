@@ -57,10 +57,25 @@ USA[, previous := NULL]
 colnames(USA)
 
 # ---------------------------------------------------------------------------------------------
-# reassign USA data.table to a trimmed version of itself...
-# only include date, state, daily_cases, and stringency_index...
+# make new feature called daily_deaths...
 
-USA <- USA[, c("date", "state", "daily_cases", "stringency_index", "population")]
+# create n=1 lagged feature using deaths for each state...
+USA[, previous := shift(deaths, 1, fill = NA_integer_), by = state]
+View(USA[1:100, ])
+
+# create daily deaths feature by subtracting previous from deaths...
+USA[, daily_deaths := deaths - previous]
+View(USA[1:100, ])
+
+# delete lagged feature...
+USA[, previous := NULL]
+colnames(USA)
+
+# ---------------------------------------------------------------------------------------------
+# reassign USA data.table to a trimmed version of itself...
+# only include date, state, daily_cases, daily_deaths, and stringency_index...
+
+USA <- USA[, c("date", "state", "daily_cases", "daily_deaths", "stringency_index")]
 View(USA[1:100, ])
 
 # ---------------------------------------------------------------------------------------------
@@ -70,10 +85,28 @@ USA <- USA[date>="2021-01-01" & date<="2021-12-31", ]
 View(USA[state == "Alabama", ])
 
 # ---------------------------------------------------------------------------------------------
-# remove any records with less than 0 daily cases...
+# correct any records with less than 0 daily cases by setting them to 0...
 
-USA <- USA[daily_cases >= 0]
-View(USA[USA$daily_cases < 0]) # should see an empty data.table...
+# check how many such records there are...
+length(USA[daily_cases < 0, ]$daily_cases)
+
+# replace each such record with a 0 value in daily_cases...
+USA[daily_cases < 0, daily_cases := 0]
+
+# make sure all such records have been corrected...
+length(USA[daily_cases < 0, ]$daily_cases) # should print 0...
+
+# ---------------------------------------------------------------------------------------------
+# correct any records with less than 0 daily deaths by setting them to 0...
+
+# check how many such records there are...
+length(USA[daily_deaths < 0, ]$daily_deaths)
+
+# replace each such record with a 0 value in daily_deaths...
+USA[daily_deaths < 0, daily_deaths := 0]
+
+# make sure all such records have been corrected...
+length(USA[daily_deaths < 0, ]$daily_deaths) # should print 0...
 
 # ---------------------------------------------------------------------------------------------
 # create California data.table and use it as a test sample...
@@ -138,12 +171,12 @@ for (index in state_indices) {
 }
 
 # ---------------------------------------------------------------------------------------------
-# make sure each state has an average stringency index...
+# make sure each state has no NULL/NA stringency index value...
 
 for (index in state_indices) {
   state_ptr <- get(state.abb[index])
   
-  print(paste(state.name[index], mean(state_ptr$stringency_index), sep = " ----> " ))
+  print(paste(state.name[index], any(is.na(state_ptr$stringency_index)), sep = " ----> " ))
 }
 
 # it looks like Louisiana, Maryland, and Rhode Island have NA average stringency indices...
@@ -203,6 +236,28 @@ for (index in RI_na_indices) {
 
 # check if we were successful...
 any(is.na(RI$stringency_index)) # should print FALSE...
+
+# ---------------------------------------------------------------------------------------------
+# make sure every state has an average number of daily cases...
+
+for (index in state_indices) {
+  state_ptr <- get(state.abb[index])
+  
+  print(paste(state.name[index], any(is.na(state_ptr$daily_cases)), sep = " ----> " ))
+}
+
+# it looks like each state has all its daily cases records filled (no NULL or NA values)...
+
+# ---------------------------------------------------------------------------------------------
+# make sure every state has an average number of daily deaths...
+
+for (index in state_indices) {
+  state_ptr <- get(state.abb[index])
+  
+  print(paste(state.name[index], any(is.na(state_ptr$daily_deaths)), sep = " ----> " ))
+}
+
+# it looks like each state has all its daily deaths records filled (no NULL or NA values)...
 
 # ---------------------------------------------------------------------------------------------
 # iterate through every state to determine what percentage of the US states...
@@ -530,7 +585,7 @@ plot_usmap(data = states_avg_stringency_index_df,
            values = "avg_stringency_index",
            labels = FALSE) +
   scale_fill_continuous(low = "white",
-                        high = "red",
+                        high = "green",
                         name = "Average Stringency Index (2021)",
                         label = scales::comma) +
   theme(legend.position = "right") +
@@ -567,11 +622,47 @@ plot_usmap(data = states_avg_daily_cases_df,
            values = "avg_daily_cases",
            labels = FALSE) +
   scale_fill_continuous(low = "white",
-                          high = "blue",
+                          high = "purple",
                           name = "Average Daily Cases (2021)",
                           label = scales::comma) +
   theme(legend.position = "right") +
   labs(title = "Average Daily Cases in the US")
+
+# ---------------------------------------------------------------------------------------------
+# our last heat map will be for average daily cases in each state...
+
+for (index in state_indices) {
+  assign(paste(state.abb[index], "avg_daily_deaths", sep = "_"), 
+         mean(get(state.abb[index])$daily_deaths))
+}
+
+# create a vector to contain each state's average daily deaths...
+states_avg_daily_deaths_vector <- vector()
+
+# populate the vector by iterating through each state...
+for (index in state_indices) {
+  states_avg_daily_deaths_vector[length(states_avg_daily_deaths_vector) + 1] <- get(
+    paste(state.abb[index], "avg_daily_deaths", sep = "_"
+    ))
+}
+
+# create another DataFrame with the state names, fips codes, and average daily deaths...
+states_avg_daily_deaths_df <- data.frame(
+  states = state.name,
+  fips = z,
+  avg_daily_deaths = states_avg_daily_deaths_vector
+)
+
+# plot another heat map using the average daily deaths DataFrame...
+plot_usmap(data = states_avg_daily_deaths_df,
+           values = "avg_daily_deaths",
+           labels = FALSE) +
+  scale_fill_continuous(low = "white",
+                        high = "red",
+                        name = "Average Daily Deaths (2021)",
+                        label = scales::comma) +
+  theme(legend.position = "right") +
+  labs(title = "Average Daily Deaths in the US")
 
 # ---------------------------------------------------------------------------------------------
 # now, let's create a some time series plots of daily cases and stringency index for some of the states....
@@ -581,34 +672,99 @@ i <- ggplot(data = NY,
             mapping = aes(x = date))
 
 # create time series plot for NY...
-i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
-  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
-  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
-                                                 "Stringency Index" = "red")) +
-  labs(x = "Date", y = "Series Value", title = "NY Time Series Analysis") +
-  theme(legend.position = "right") + theme_linedraw()
+i + geom_line(aes(y = daily_cases / 100,
+                  col = "Daily Cases / 100",
+                  linetype = "Daily Cases / 100",
+                  size = "Daily Cases / 100")) +
+  geom_line(aes(y = daily_deaths,
+                col = "Daily Deaths",
+                linetype = "Daily Deaths",
+                size = "Daily Deaths")) +
+  geom_line(aes(y = stringency_index,
+                col = "Stringency Index",
+                linetype = "Stringency Index",
+                size = "Stringency Index")) +
+  scale_color_manual(name = "Series",
+                     values = c("Daily Cases / 100" = "purple",
+                                "Daily Deaths" = "red",
+                                "Stringency Index" = "green")) +
+  scale_linetype_manual(name = "Series",
+                        values = c("Daily Cases / 100" = 1,
+                                   "Daily Deaths" = 2,
+                                   "Stringency Index" = 1)) +
+  scale_size_manual(name = "Series",
+                    values = c("Daily Cases / 100" = 0.5,
+                               "Daily Deaths" = 0.5,
+                               "Stringency Index" = 1)) +
+  labs(title = "New York Time Series Analysis",
+       x = "Date", y = "Series Value") +
+  guides(fill = guide_legend(title = "Series")) +
+  theme_linedraw()
 
 # create ggplot object for LA...
 i <- ggplot(data = LA,
             mapping = aes(x = date))
 
 # create time series plot for LA...
-i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
-  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
-  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
-                                                 "Stringency Index" = "red")) +
-  labs(x = "Date", y = "Series Value", title = "Louisiana Time Series Analysis") +
-  theme(legend.position = "right") + theme_linedraw()
+i + geom_line(aes(y = daily_cases / 100,
+                  col = "Daily Cases / 100",
+                  linetype = "Daily Cases / 100",
+                  size = "Daily Cases / 100")) +
+  geom_line(aes(y = daily_deaths,
+                col = "Daily Deaths",
+                linetype = "Daily Deaths",
+                size = "Daily Deaths")) +
+  geom_line(aes(y = stringency_index,
+                col = "Stringency Index",
+                linetype = "Stringency Index",
+                size = "Stringency Index")) +
+  scale_color_manual(name = "Series",
+                     values = c("Daily Cases / 100" = "purple",
+                                "Daily Deaths" = "red",
+                                "Stringency Index" = "green")) +
+  scale_linetype_manual(name = "Series",
+                        values = c("Daily Cases / 100" = 1,
+                                   "Daily Deaths" = 2,
+                                   "Stringency Index" = 1)) +
+  scale_size_manual(name = "Series",
+                    values = c("Daily Cases / 100" = 0.5,
+                               "Daily Deaths" = 0.5,
+                               "Stringency Index" = 1)) +
+  labs(title = "Louisiana Time Series Analysis",
+       x = "Date", y = "Series Value") +
+  guides(fill = guide_legend(title = "Series")) +
+  theme_linedraw()
 
 # create ggplot object for HI...
 i <- ggplot(data = HI,
             mapping = aes(x = date))
 
 # create time series plot for HI...
-i + geom_line(aes(y = daily_cases / 100, colour = "Daily Cases / 100")) +
-  geom_line(aes(y = stringency_index, colour = "Stringency Index")) +
-  scale_color_manual(name = "Series", values = c("Daily Cases / 100" = "blue",
-                                                 "Stringency Index" = "red")) +
-  labs(x = "Date", y = "Series Value", title = "Hawaii Time Series Analysis") +
-  theme(legend.position = "right") + theme_linedraw()
-
+i + geom_line(aes(y = daily_cases / 100,
+                  col = "Daily Cases / 100",
+                  linetype = "Daily Cases / 100",
+                  size = "Daily Cases / 100")) +
+  geom_line(aes(y = daily_deaths,
+                col = "Daily Deaths",
+                linetype = "Daily Deaths",
+                size = "Daily Deaths")) +
+  geom_line(aes(y = stringency_index,
+                col = "Stringency Index",
+                linetype = "Stringency Index",
+                size = "Stringency Index")) +
+  scale_color_manual(name = "Series",
+                     values = c("Daily Cases / 100" = "purple",
+                                "Daily Deaths" = "red",
+                                "Stringency Index" = "green")) +
+  scale_linetype_manual(name = "Series",
+                        values = c("Daily Cases / 100" = 1,
+                                   "Daily Deaths" = 2,
+                                   "Stringency Index" = 1)) +
+  scale_size_manual(name = "Series",
+                    values = c("Daily Cases / 100" = 0.5,
+                               "Daily Deaths" = 0.5,
+                               "Stringency Index" = 1)) +
+  labs(title = "Hawaii Time Series Analysis",
+       x = "Date", y = "Series Value") +
+  guides(fill = guide_legend(title = "Series")) +
+  theme_linedraw()
