@@ -187,7 +187,7 @@ for (index in state_indices) {
 # get indices of NA records for Louisiana...
 LA_na_indices <- which(is.na(LA$stringency_index), arr.ind = TRUE)
 
-# there seems to be only one NA record, so we only need to interpolate once...
+# there seems to be only one NA record, so we only need to impute once...
 # replace NA record using mean of stringency_index values for 15 days before and after...
 # day with NA record for stringency_index...
 LA$stringency_index[LA_na_indices] = mean(LA$stringency_index[LA_na_indices - 15:LA_na_indices + 15], na.rm = TRUE)
@@ -201,14 +201,14 @@ any(is.na(LA$stringency_index)) # should print FALSE...
 MD_na_indices <- which(is.na(MD$stringency_index), arr.ind = TRUE)
 
 # Maryland has multiple NA records, however they all seem to be grouped consecutively...
-# we can interpolate each NA record using the mean stringency_index for the 15 days...
+# we can impute each NA record using the mean stringency_index for the 15 days...
 # before the first NA record and the 15 days after the last NA record...
 
 # store indices of first and last NA records...
 MD_na_first <- MD_na_indices[1]
 MD_na_last <- MD_na_indices[length(MD_na_indices)]
 
-# interpolate...
+# impute...
 for (index in MD_na_indices) {
   MD$stringency_index[index] = mean(MD$stringency_index[MD_na_first - 15:MD_na_last + 15], na.rm = TRUE)
 }
@@ -229,7 +229,7 @@ RI_na_indices <- which(is.na(RI$stringency_index), arr.ind = TRUE)
 RI_na_first <- RI_na_indices[1]
 RI_na_last <- RI_na_indices[length(RI_na_indices)]
 
-# interpolate...
+# impute...
 for (index in RI_na_indices) {
   RI$stringency_index[index] = mean(RI$stringency_index[RI_na_first - 15:RI_na_last + 15], na.rm = TRUE)
 }
@@ -663,6 +663,130 @@ plot_usmap(data = states_avg_daily_deaths_df,
                         label = scales::comma) +
   theme(legend.position = "right") +
   labs(title = "Average Daily Deaths in the US")
+
+# ---------------------------------------------------------------------------------------------
+# now, let's create some heat maps based on the statistical significances of each...
+# state's lenient-strict mean daily cases spread...
+
+# define an empty vector to contain 2-sided minimum levels of significance for each state...
+states_diff_alpha <- vector()
+
+# populate empty vector...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.01) {
+    states_diff_alpha[length(states_diff_alpha) + 1] <- "< 0.01"
+  }
+  else if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.05) {
+    states_diff_alpha[length(states_diff_alpha) + 1] <- "< 0.05"
+  }
+  else if (get(paste(state.abb[index], "diff_ttest_obj", sep = "_"))$p.value < 0.10) {
+    states_diff_alpha[length(states_diff_alpha) + 1] <- "< 0.10"
+  }
+  else {
+    states_diff_alpha[length(states_diff_alpha) + 1] <- ">= 0.10"
+  }
+}
+
+# create a data.frame to be used in a heat map plot...
+states_diff_alpha_df <- data.frame(
+  states = state.name,
+  fips = z,
+  level_of_significance = states_diff_alpha
+)
+
+# plot a heat map using the states_diff_alpha_df data.frame...
+plot_usmap(data = states_diff_alpha_df,
+           values = "level_of_significance",
+           labels = FALSE) +
+  scale_fill_manual(name = "Minimum Alpha",
+                    values = c(">= 0.10" = "white",
+                              "< 0.10" = "#77f59d33",
+                              "< 0.05" = "#77f59d88",
+                              "< 0.01" = "#77f59ddd")) +
+  theme(legend.position = "right") +
+  labs(title = "Minimum Levels of Significance (2-sided)")
+
+# ---------------------------------------------------------------------------------------------
+# next, we'll create a heat map for the 1-sided lenient larger mean t-test alphas...
+
+# create an empty vector to contain state minimum alphas...
+states_lenient_larger_alpha <- vector()
+
+# populate empty vector...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.01) {
+    states_lenient_larger_alpha[length(states_lenient_larger_alpha) + 1] <- "< 0.01"
+  }
+  else if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.05) {
+    states_lenient_larger_alpha[length(states_lenient_larger_alpha) + 1] <- "< 0.05"
+  }
+  else if (get(paste(state.abb[index], "strict_smaller_mean_ttest_obj", sep = "_"))$p.value < 0.10) {
+    states_lenient_larger_alpha[length(states_lenient_larger_alpha) + 1] <- "< 0.10"
+  }
+  else {
+    states_lenient_larger_alpha[length(states_lenient_larger_alpha) + 1] <- ">= 0.10"
+  }
+}
+
+# create a data.frame to be used in a heat map plot...
+states_lenient_larger_alpha_df <- data.frame(
+  states = state.name,
+  fips = z,
+  level_of_significance = states_lenient_larger_alpha
+)
+
+# plot a heat map using the states_lenient_larger_alpha data.frame...
+plot_usmap(data = states_lenient_larger_alpha_df,
+           values = "level_of_significance",
+           labels = FALSE) +
+  scale_fill_manual(name = "Minimum Alpha",
+                    values = c(">= 0.10" = "white",
+                               "< 0.10" = "#4596f333",
+                               "< 0.05" = "#4596f388",
+                               "< 0.01" = "#4596f3dd")) +
+  theme(legend.position = "right") +
+  labs(title = "Minimum Levels of Significance\n(1-sided, Lenient Larger Mean)")
+
+# ---------------------------------------------------------------------------------------------
+# finally, we'll create a heat map for the 1-sided lenient smaller mean t-test alphas...
+
+# create an empty vector to contain state minimum alphas...
+states_lenient_smaller_alpha <- vector()
+
+# populate empty vector...
+for (index in state_indices) {
+  if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.01) {
+    states_lenient_smaller_alpha[length(states_lenient_smaller_alpha) + 1] <- "< 0.01"
+  }
+  else if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.05) {
+    states_lenient_smaller_alpha[length(states_lenient_smaller_alpha) + 1] <- "< 0.05"
+  }
+  else if (get(paste(state.abb[index], "strict_larger_mean_ttest_obj", sep = "_"))$p.value < 0.10) {
+    states_lenient_smaller_alpha[length(states_lenient_smaller_alpha) + 1] <- "< 0.10"
+  }
+  else {
+    states_lenient_smaller_alpha[length(states_lenient_smaller_alpha) + 1] <- ">= 0.10"
+  }
+}
+
+# create a data.frame to be used in a heat map plot...
+states_lenient_smaller_alpha_df <- data.frame(
+  states = state.name,
+  fips = z,
+  level_of_significance = states_lenient_smaller_alpha
+)
+
+# plot a heat map using the states_lenient_smaller_alpha data.frame...
+plot_usmap(data = states_lenient_smaller_alpha_df,
+           values = "level_of_significance",
+           labels = FALSE) +
+  scale_fill_manual(name = "Minimum Alpha",
+                    values = c(">= 0.10" = "white",
+                               "< 0.10" = "#8f556733",
+                               "< 0.05" = "#8f556788",
+                               "< 0.01" = "#8f5567dd")) +
+  theme(legend.position = "right") +
+  labs(title = "Minimum Levels of Significance\n(1-sided, Lenient Smaller Mean)")
 
 # ---------------------------------------------------------------------------------------------
 # now, let's create a some time series plots of daily cases and stringency index for some of the states....
