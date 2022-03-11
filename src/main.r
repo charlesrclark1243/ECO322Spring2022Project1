@@ -204,6 +204,22 @@ plot_usmap(data = state_concs_df,
 
 # --------------------------------------------------------------------------------------------------------------------------
 
+# create ggplot object with state_concs_df...
+k <- ggplot(data = state_concs_df,
+            aes(x = concentration))
+
+# --------------------------------------------------------------------------------------------------------------------------
+
+# create histogram of concentrations...
+k + geom_histogram(bins = 10, fill = "dodgerblue", color = "black") +
+  labs(title = "State COVID-19 Concentrations (2021)",
+       x= "Concentration", y = "Frequency") +
+  scale_x_continuous(breaks = seq(0.06, 0.14, 0.02)) +
+  scale_y_continuous(breaks = seq(0, 14, 2)) +
+  theme_linedraw()
+
+# --------------------------------------------------------------------------------------------------------------------------
+
 # redefine the USA variable to include county-level data...
 USA <- covid19(country = "United States", level = 3, verbose = FALSE)
 
